@@ -1,0 +1,2 @@
+add_lunch_combo bootleg_kltekor-user
+add_lunch_combo bootleg_kltekor-userdebug
