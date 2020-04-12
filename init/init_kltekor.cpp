@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2016, The Linux Foundation. All rights reserved.
-   Copyright (c) 2017-2018, The LineageOS Project. All rights reserved.
+   Copyright (c) 2017-2020, The LineageOS Project. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -28,46 +28,85 @@
    IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdlib.h>
+#include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
+#include <android-base/strings.h>
+
+#define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
+#include <sys/_system_properties.h>
 
 #include "property_service.h"
 #include "vendor_init.h"
 
-#include "init_msm8974.h"
-
 using android::base::GetProperty;
+using android::base::ReadFileToString;
+using android::base::Trim;
 using android::init::property_set;
 
-void init_target_properties()
-{
-    std::string platform = GetProperty("ro.board.platform", "");
-    if (platform != ANDROID_TARGET)
-        return;
+// copied from build/tools/releasetools/ota_from_target_files.py
+// but with "." at the end and empty entry
+std::vector<std::string> ro_product_props_default_source_order = {
+    "",
+    "product.",
+    "product_services.",
+    "odm.",
+    "vendor.",
+    "system.",
+};
 
+void property_override(char const prop[], char const value[], bool add = true)
+{
+    auto pi = (prop_info *) __system_property_find(prop);
+
+    if (pi != nullptr) {
+        __system_property_update(pi, value, strlen(value));
+    } else if (add) {
+        __system_property_add(prop, strlen(prop), value, strlen(value));
+    }
+}
+
+void vendor_load_properties()
+{
     std::string bootloader = GetProperty("ro.bootloader", "");
+
+    const auto set_ro_product_prop = [](const std::string &source,
+            const std::string &prop, const std::string &value) {
+        auto prop_name = "ro.product." + source + prop;
+        property_override(prop_name.c_str(), value.c_str(), false);
+    };
 
     if (bootloader.find("G900K") == 0) {
         /* kltektt - KT Corp (formerly Korea Telecom) */
-        property_override_dual("ro.build.fingerprint", "ro.vendor.build.fingerprint", "samsung/kltektt/kltektt:6.0.1/MMB29M/G900KKTU1CPL5:user/release-keys");
+        for (const auto &source : ro_product_props_default_source_order) {
+            set_ro_product_prop(source, "fingerprint", "samsung/kltektt/kltektt:6.0.1/MMB29M/G900KKTU1CPL5:user/release-keys");
+            set_ro_product_prop(source, "model", "SM-G900K");
+            set_ro_product_prop(source, "device", "kltektt");
+        }
         property_override("ro.build.description", "kltektt-user 6.0.1 MMB29M G900KKTU1CPL5 release-keys");
-        property_override_dual("ro.product.model", "ro.vendor.product.model", "SM-G900K");
-        property_override_dual("ro.product.device", "ro.vendor.product.device", "kltektt");
     } else if (bootloader.find("G900L") == 0) {
         /* kltelgt - LG Uplus */
-        property_override_dual("ro.build.fingerprint", "ro.vendor.build.fingerprint", "samsung/kltelgt/kltelgt:6.0.1/MMB29M/G900LKLU1CPL5:user/release-keys");
+        for (const auto &source : ro_product_props_default_source_order) {
+            set_ro_product_prop(source, "fingerprint", "samsung/kltelgt/kltelgt:6.0.1/MMB29M/G900LKLU1CPL5:user/release-keys");
+            set_ro_product_prop(source, "model", "SM-G900L");
+            set_ro_product_prop(source, "device", "kltelgt");
+        }
         property_override("ro.build.description", "kltelgt-user 6.0.1 MMB29M G900LKLU1CPL5 release-keys");
-        property_override_dual("ro.product.model", "ro.vendor.product.model", "SM-G900L");
-        property_override_dual("ro.product.device", "ro.vendor.product.device", "kltelgt");
     } else if (bootloader.find("G900S") == 0) {
         /* klteskt - SK Telecom */
-        property_override_dual("ro.build.fingerprint", "ro.vendor.build.fingerprint", "samsung/klteskt/klteskt:6.0.1/MMB29M/G900SKSU1CPL5:user/release-keys");
+        for (const auto &source : ro_product_props_default_source_order) {
+            set_ro_product_prop(source, "fingerprint", "samsung/klteskt/klteskt:6.0.1/MMB29M/G900SKSU1CPL5:user/release-keys");
+            set_ro_product_prop(source, "model", "SM-G900S");
+            set_ro_product_prop(source, "device", "klteskt");
+        }
         property_override("ro.build.description", "klteskt-user 6.0.1 MMB29M G900SKSU1CPL5 release-keys");
-        property_override_dual("ro.product.model", "ro.vendor.product.model", "SM-G900S");
-        property_override_dual("ro.product.device", "ro.vendor.product.device", "klteskt");
     }
 
     std::string device = GetProperty("ro.product.device", "");
